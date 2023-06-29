@@ -60,6 +60,43 @@ class BuscaAdvogados:
         BuscaAdvogados._esperar_pagina_carregar(driver)
         
         return driver
+    
+    def retirar_info_processo(processo_element):   
+        print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')     
+        resumo_processo = {}
+        div_mae = processo_element                    
+        id_processo = div_mae.get_attribute('id').replace('divProcesso','')
+        resumo_processo['id_processo'] = id_processo
+        print('ID do processo:',id_processo)
+
+        div_colunas = div_mae.find_element(By.CSS_SELECTOR,'div.home__lista-de-processos')
+        # print('Achei a div colunas?','sim' if div_colunas else 'nao')
+        div_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.nuProcesso')
+        link_processo = div_processo.find_element(By.CSS_SELECTOR,'a')
+        numero_processo = link_processo.text
+        resumo_processo['numero_proceso'] = numero_processo
+        link_processo = link_processo.get_attribute('href')
+        resumo_processo['link_processo'] = link_processo
+
+        classe_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.classeProcesso').text
+        assunto_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.assuntoPrincipalProcesso').text
+        data_distribuicao = div_colunas.find_element(By.CSS_SELECTOR,'div.dataLocalDistribuicaoProcesso').text
+
+        resumo_processo['classe_processo'] = classe_processo
+        resumo_processo['assunto_processo'] = assunto_processo
+        resumo_processo['data_distruibuicao'] = data_distribuicao
+        
+        incidente_tag = f"a#incidentesRecursos_{id_processo}"
+        try:
+            link_incidentes_recursos = div_mae.find_element(By.CSS_SELECTOR,incidente_tag)
+        except selenium.common.exceptions.NoSuchElementException:
+            link_incidentes_recursos = None
+        print('Achei o link para incidentes e recursos?', 'sim' if link_incidentes_recursos else 'nao')            
+        resumo_processo['incidentes_recursos'] = 'possui' if link_incidentes_recursos else 'nao possui'
+        resumo_processo['link_filhos'] = link_incidentes_recursos
+        resumo_processo['incidente_ou_recurso'] = 'nao'
+
+        return resumo_processo
 
     def buscar_processos(driver:webdriver):
         container_processos = driver.find_element(By.CSS_SELECTOR,'div#listagemDeProcessos')
@@ -69,55 +106,55 @@ class BuscaAdvogados:
         count = 1
 
         resultado = []
-        for processo in lista_processos:
-            print(count,'::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
-            resumo_processo = {}
-            div_mae = processo.find_element(By.CSS_SELECTOR,'div')            
-            id_processo = div_mae.get_attribute('id').replace('divProcesso','')
-            print('ID do processo:',id_processo)
+        for processo in lista_processos:   
+            actions = ActionChains(driver)
+            actions.move_to_element(processo).perform()
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", processo)         
 
-            div_colunas = div_mae.find_element(By.CSS_SELECTOR,'div.home__lista-de-processos')
-            print('Achei a div colunas?','sim' if div_colunas else 'nao')
-            div_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.nuProcesso')
-            link_processo = div_processo.find_element(By.CSS_SELECTOR,'a')
-            numero_processo = link_processo.text
-            resumo_processo['numero_proceso'] = numero_processo
-            link_processo = link_processo.get_attribute('href')
-            resumo_processo['link_processo'] = link_processo
-
-            classe_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.classeProcesso').text
-            assunto_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.assuntoPrincipalProcesso').text
-            data_distribuicao = div_colunas.find_element(By.CSS_SELECTOR,'div.dataLocalDistribuicaoProcesso').text
-
-            resumo_processo['classe_processo'] = classe_processo
-            resumo_processo['assunto_processo'] = assunto_processo
-            resumo_processo['data_distruibuicao'] = data_distribuicao
-            
-            incidente_tag = f"a#incidentesRecursos_{id_processo}"
-            try:
-                link_incidentes_recursos = div_mae.find_element(By.CSS_SELECTOR,incidente_tag)
-            except selenium.common.exceptions.NoSuchElementException:
-                link_incidentes_recursos = None
-            print('Achei o link para incidentes e recursos?', 'sim' if link_incidentes_recursos else 'nao')
-            resumo_processo['incidentes_recursos'] = 'possui' if link_incidentes_recursos else 'nao possui'
-
-            link_incidentes_recursos.click()
-
-            tag_div_filhos = f'div#divFilhos{id_processo}'
-            div_filhos = driver.find_element(By.CSS_SELECTOR,tag_div_filhos)
-
-            qtd_filhos = div_filhos.find_elements(By.XPATH,"//div[contains(@id,'divProcesso')]")
-
-            print('Quantidade de filhos:',len(qtd_filhos))
-
-            while True:
-                True            
-
+            div_mae = processo.find_element(By.CSS_SELECTOR,'div')
+            resumo_processo = BuscaAdvogados.retirar_info_processo(div_mae)
             resultado.append(resumo_processo)
+            link_incidentes_recursos = resumo_processo.get('link_filhos',None)
+            id_processo = resumo_processo.get('id_processo',None)
+
+            if link_incidentes_recursos:
+                time.sleep(3)
+                link_incidentes_recursos.click()
+                time.sleep(3)
+
+                tag_div_filhos = f'div#divFilhos{id_processo}'
+                div_filhos = driver.find_element(By.CSS_SELECTOR,tag_div_filhos)
+                "div[contains(@id,'divProcesso')]"
+                qtd_filhos = div_filhos.find_elements(By.CSS_SELECTOR,"div")
+                print('Achei quantos filhos?',len(qtd_filhos))
+
+                if len(qtd_filhos) == 0:
+                    time.sleep(3)
+                    link_incidentes_recursos.click()
+                    time.sleep(3)
+                    qtd_filhos = div_filhos.find_elements(By.CSS_SELECTOR,"div")
+
+                for filho in qtd_filhos:
+                    tipo_de_filho = filho.get_attribute('id')
+                    if 'divProcesso' in tipo_de_filho:
+                        resumo_filho = BuscaAdvogados.retirar_info_processo(filho)
+                        resumo_filho['incidente_ou_recurso'] = 'sim'
+                        resultado.append(resumo_filho)
+            # print('Esse é o processo filho?',qtd_filhos if qtd_filhos.get_attribute('id') is not None else 'Nao')
+
+            
+            # df = pd.DataFrame(resultado)
+            # df.to_excel('resultado.xlsx',index=False,engine='openpyxl')
+
+            # resultado.append(resumo_processo)
             count += 1
             
         df = pd.DataFrame(resultado)
         df.to_excel('resultado.xlsx',index=False,engine='openpyxl')
+
+    # def total_de_processos(driver:webdriver):
+        
+    #     # contadorDeProcessos
 
 
 if __name__ == '__main__':
