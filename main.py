@@ -1,0 +1,127 @@
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.select import Select
+from selenium import webdriver
+import selenium
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.common.action_chains import ActionChains
+import json, time, os
+from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
+import pandas as pd
+class BuscaAdvogados:
+    def _esperar_pagina_carregar(driver):
+        wait = WebDriverWait(driver, 10)
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        return True
+    
+    def acessar_esaj():        
+        chrome_options = webdriver.ChromeOptions()
+        
+        """Sem visuzalizacao do chrome"""
+        # chrome_options.add_argument("--no-sandbox")
+        # chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--disable-dev-shm-usage")
+
+        """Local de download especifico"""
+        # nome_pasta = 'pdf/'+incidente['incidente']     
+        # os.makedirs(nome_pasta, exist_ok=True)        
+        # download_directory = os.path.join(os.getcwd(), 'pdf',incidente['incidente'])
+        # prefs = {
+        #     'download.default_directory': download_directory,
+        #     'download.prompt_for_download': False,
+        #     'download.directory_upgrade': True,
+        #     'safebrowsing.enabled': True
+        # }
+        # chrome_options.add_experimental_option('prefs', prefs)
+
+        service = Service()
+        driver = webdriver.Chrome(service=service,options=chrome_options)
+
+        driver.get('https://esaj.tjsp.jus.br/cpopg/open.do')
+        BuscaAdvogados._esperar_pagina_carregar(driver)
+
+        return driver
+    
+    def buscar_advogado(driver,nome_advogado:str):
+        select_tipo_pesquisa = driver.find_element(By.CSS_SELECTOR,'select#cbPesquisa')
+        select = Select(select_tipo_pesquisa)       
+        select.select_by_value("NMADVOGADO")
+
+        input_nome = driver.find_element(By.CSS_SELECTOR, 'input#campo_NMADVOGADO')
+        input_nome.send_keys(nome_advogado)
+        print('Inputado nome')
+        time.sleep(5)
+
+        btn_consultar = driver.find_element(By.CSS_SELECTOR,'input#botaoConsultarProcessos')
+        btn_consultar.click()
+        BuscaAdvogados._esperar_pagina_carregar(driver)
+        
+        return driver
+
+    def buscar_processos(driver:webdriver):
+        container_processos = driver.find_element(By.CSS_SELECTOR,'div#listagemDeProcessos')
+        lista_processos = container_processos.find_element(By.CSS_SELECTOR,'ul')
+        lista_processos =lista_processos.find_elements(By.CSS_SELECTOR,'li')
+        print('Encontrados',len(lista_processos),'processos.')
+        count = 1
+
+        resultado = []
+        for processo in lista_processos:
+            print(count,'::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
+            resumo_processo = {}
+            div_mae = processo.find_element(By.CSS_SELECTOR,'div')            
+            id_processo = div_mae.get_attribute('id').replace('divProcesso','')
+            print('ID do processo:',id_processo)
+
+            div_colunas = div_mae.find_element(By.CSS_SELECTOR,'div.home__lista-de-processos')
+            print('Achei a div colunas?','sim' if div_colunas else 'nao')
+            div_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.nuProcesso')
+            link_processo = div_processo.find_element(By.CSS_SELECTOR,'a')
+            numero_processo = link_processo.text
+            resumo_processo['numero_proceso'] = numero_processo
+            link_processo = link_processo.get_attribute('href')
+            resumo_processo['link_processo'] = link_processo
+
+            classe_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.classeProcesso').text
+            assunto_processo = div_colunas.find_element(By.CSS_SELECTOR,'div.assuntoPrincipalProcesso').text
+            data_distribuicao = div_colunas.find_element(By.CSS_SELECTOR,'div.dataLocalDistribuicaoProcesso').text
+
+            resumo_processo['classe_processo'] = classe_processo
+            resumo_processo['assunto_processo'] = assunto_processo
+            resumo_processo['data_distruibuicao'] = data_distribuicao
+            
+            incidente_tag = f"a#incidentesRecursos_{id_processo}"
+            try:
+                link_incidentes_recursos = div_mae.find_element(By.CSS_SELECTOR,incidente_tag)
+            except selenium.common.exceptions.NoSuchElementException:
+                link_incidentes_recursos = None
+            print('Achei o link para incidentes e recursos?', 'sim' if link_incidentes_recursos else 'nao')
+            resumo_processo['incidentes_recursos'] = 'possui' if link_incidentes_recursos else 'nao possui'
+
+            link_incidentes_recursos.click()
+
+            tag_div_filhos = f'div#divFilhos{id_processo}'
+            div_filhos = driver.find_element(By.CSS_SELECTOR,tag_div_filhos)
+
+            qtd_filhos = div_filhos.find_elements(By.XPATH,"//div[contains(@id,'divProcesso')]")
+
+            print('Quantidade de filhos:',len(qtd_filhos))
+
+            while True:
+                True            
+
+            resultado.append(resumo_processo)
+            count += 1
+            
+        df = pd.DataFrame(resultado)
+        df.to_excel('resultado.xlsx',index=False,engine='openpyxl')
+
+
+if __name__ == '__main__':
+    driver = BuscaAdvogados.acessar_esaj()
+    BuscaAdvogados.buscar_advogado(driver,'')
+    BuscaAdvogados.buscar_processos(driver)
+    print('Acabou.')
