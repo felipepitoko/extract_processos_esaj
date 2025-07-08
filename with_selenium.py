@@ -1,16 +1,20 @@
+import json, time, os, argparse
+
+from concurrent.futures import ThreadPoolExecutor
+
+import with_selenium
+from tqdm import tqdm
+import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.select import Select
 from selenium import webdriver
-import selenium
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.action_chains import ActionChains
-import json, time, os
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
-import pandas as pd
+
+
 class BuscaAdvogados:
     def _esperar_pagina_carregar(driver):
         wait = WebDriverWait(driver, 10)
@@ -89,7 +93,7 @@ class BuscaAdvogados:
         incidente_tag = f"a#incidentesRecursos_{id_processo}"
         try:
             link_incidentes_recursos = div_mae.find_element(By.CSS_SELECTOR,incidente_tag)
-        except selenium.common.exceptions.NoSuchElementException:
+        except with_selenium.common.exceptions.NoSuchElementException:
             link_incidentes_recursos = None
         print('Achei o link para incidentes e recursos?', 'sim' if link_incidentes_recursos else 'nao')            
         resumo_processo['incidentes_recursos'] = 'possui' if link_incidentes_recursos else 'nao possui'
@@ -152,12 +156,14 @@ class BuscaAdvogados:
         df = pd.DataFrame(resultado)
         df.to_excel('resultado.xlsx',index=False,engine='openpyxl')
 
-    # def total_de_processos(driver:webdriver):
+    def inserir_processo(driver:webdriver):
+        input_processo = driver.find_element(By.CSS_SELECTOR,'label#cbPesquisa')
         
-    #     # contadorDeProcessos
-
-
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Busca processos no ESAJ")
+    parser.add_argument('--process_num', type=str, default='', help='Número do processo a ser consultado.')
+    args = parser.parse_args()
+    
     driver = BuscaAdvogados.acessar_esaj()
     BuscaAdvogados.buscar_advogado(driver,'')
     BuscaAdvogados.buscar_processos(driver)
