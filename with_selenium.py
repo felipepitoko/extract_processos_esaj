@@ -16,12 +16,18 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 
 class BuscaAdvogados:
-    def _esperar_pagina_carregar(driver):
-        wait = WebDriverWait(driver, 10)
+    def __init__(self, numero_processo:str):
+        self.driver = self.acessar_esaj()
+        self._esperar_pagina_carregar()
+        self.numero_processo = numero_processo
+        
+    def _esperar_pagina_carregar(self):
+        wait = WebDriverWait(self.driver, 10)
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        
         return True
     
-    def acessar_esaj():        
+    def acessar_esaj(self):        
         chrome_options = webdriver.ChromeOptions()
         
         """Sem visuzalizacao do chrome"""
@@ -45,7 +51,6 @@ class BuscaAdvogados:
         driver = webdriver.Chrome(service=service,options=chrome_options)
 
         driver.get('https://esaj.tjsp.jus.br/cpopg/open.do')
-        BuscaAdvogados._esperar_pagina_carregar(driver)
 
         return driver
     
@@ -156,15 +161,29 @@ class BuscaAdvogados:
         df = pd.DataFrame(resultado)
         df.to_excel('resultado.xlsx',index=False,engine='openpyxl')
 
-    def inserir_processo(driver:webdriver):
-        input_processo = driver.find_element(By.CSS_SELECTOR,'label#cbPesquisa')
+    def inserir_processo(self):
+        unificado_radio = self.driver.find_element(By.CSS_SELECTOR, 'input#radioNumeroAntigo')
+        unificado_radio.click()
+        time.sleep(1)
+        
+        input_processo = self.driver.find_element(By.CSS_SELECTOR,'input#nuProcessoAntigoFormatado')
+        input_processo.send_keys(self.numero_processo)
+        time.sleep(1)
+        
+        input_button = self.driver.find_element(By.CSS_SELECTOR, 'input#botaoConsultarProcessos')
+        input_button.click()
+        
+        time.sleep(10)
         
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Busca processos no ESAJ")
-    parser.add_argument('--process_num', type=str, default='', help='Número do processo a ser consultado.')
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description="Busca processos no ESAJ")
+    # parser.add_argument('--process_num', type=str, default='', help='Número do processo a ser consultado.')
+    # args = parser.parse_args()
     
-    driver = BuscaAdvogados.acessar_esaj()
-    BuscaAdvogados.buscar_advogado(driver,'')
-    BuscaAdvogados.buscar_processos(driver)
+    consultaProcesso = BuscaAdvogados(processo)
+    consultaProcesso.inserir_processo()
+    
+    
+    # BuscaAdvogados.buscar_advogado(driver,'')
+    # BuscaAdvogados.buscar_processos(driver)
     print('Acabou.')
